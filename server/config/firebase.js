@@ -1,16 +1,13 @@
 const admin = require('firebase-admin');
+const path = require('path');
 require('dotenv').config();
 
-const serviceAccount = {
-  type: 'service_account',
-  project_id: process.env.FIREBASE_PROJECT_ID,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  client_email: process.env.FIREBASE_CLIENT_EMAIL,
-};
+// Load service account from JSON file (most reliable on Windows)
+const serviceAccount = require(path.join(__dirname, '..', 'serviceAccountKey.json'));
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.firebasestorage.app`,
 });
 
 const db = admin.firestore();
@@ -18,3 +15,4 @@ const auth = admin.auth();
 const bucket = admin.storage().bucket();
 
 module.exports = { admin, db, auth, bucket };
+
