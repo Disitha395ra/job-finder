@@ -1,0 +1,203 @@
+.dashboard-page {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-xl) var(--space-lg);
+    animation: fadeIn 0.4s ease;
+}
+
+.dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-xl);
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.dashboard-header h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.dashboard-header-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+/* Tabs */
+.dashboard-tabs {
+    display: flex;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-xl);
+    border-bottom: 2px solid var(--gray-200);
+    overflow-x: auto;
+}
+
+.dashboard-tab {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 0.75rem 1.25rem;
+    border: none;
+    background: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.dashboard-tab:hover {
+    color: var(--text-primary);
+}
+
+.dashboard-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* Job Cards in Dashboard */
+.dashboard-job-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    padding: var(--space-lg);
+    border: 1px solid var(--gray-200);
+    margin-bottom: var(--space-md);
+    transition: all var(--transition-fast);
+}
+
+.dashboard-job-card:hover {
+    border-color: var(--primary-200);
+    box-shadow: var(--shadow-md);
+}
+
+.dashboard-job-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.dashboard-job-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.dashboard-job-meta {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    margin-top: var(--space-sm);
+}
+
+.dashboard-job-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.825rem;
+    color: var(--text-secondary);
+}
+
+.dashboard-job-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.dashboard-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--gray-200);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dashboard-action-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-50);
+}
+
+.dashboard-action-btn.danger:hover {
+    border-color: var(--error);
+    color: var(--error);
+    background: var(--error-light);
+}
+
+/* Post Job Form */
+.post-job-form {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    padding: var(--space-2xl);
+    border: 1px solid var(--gray-200);
+}
+
+.post-job-form h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: var(--space-lg);
+    color: var(--text-primary);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+}
+
+/* Change Password */
+.change-password-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    padding: var(--space-2xl);
+    border: 1px solid var(--gray-200);
+    max-width: 500px;
+}
+
+.change-password-card h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: var(--space-lg);
+    color: var(--text-primary);
+}
+
+/* Empty state */
+.dashboard-empty {
+    text-align: center;
+    padding: var(--space-3xl);
+    color: var(--text-muted);
+}
+
+.dashboard-empty-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-md);
+    color: var(--gray-300);
+}
+
+.dashboard-empty h3 {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
