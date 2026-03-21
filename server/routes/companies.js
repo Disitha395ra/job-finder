@@ -68,14 +68,29 @@ router.get('/jobs', verifyToken, requireCompany, async (req, res) => {
             .orderBy('createdAt', 'desc')
             .get();
 
+        const now = new Date();
         const jobs = [];
         snapshot.forEach((doc) => {
             const data = doc.data();
+            let isExpired = false;
+
+            // Check if the closing date has passed
+            if (data.closingDate) {
+                const closingDate = data.closingDate.toDate ? data.closingDate.toDate() : new Date(data.closingDate);
+                if (closingDate < now && data.status === 'published') {
+                    isExpired = true;
+                    // Auto-update to expired in the background
+                    db.collection('jobs').doc(doc.id).update({ status: 'expired' }).catch(() => { });
+                }
+            }
+
             jobs.push({
                 id: doc.id,
                 ...data,
+                isExpired: isExpired || data.status === 'expired',
                 createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
                 updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+                closingDate: data.closingDate?.toDate ? data.closingDate.toDate().toISOString() : data.closingDate,
             });
         });
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../config/firebase');
+const { db, admin } = require('../config/firebase');
 const { verifyToken, requireCompany } = require('../middleware/auth');
 
 /**
@@ -10,24 +10,43 @@ const { verifyToken, requireCompany } = require('../middleware/auth');
 router.get('/', async (req, res) => {
     try {
         const { keyword, location, type, datePosted, page = 1, limit = 20 } = req.query;
-        let query = db.collection('jobs').where('status', '==', 'published');
+        const now = new Date();
+
+        // Start with all published jobs, ordered by newest first
+        let query = db.collection('jobs')
+            .where('status', '==', 'published')
+            .orderBy('createdAt', 'desc');
+
+        const snapshot = await query.get();
+        let jobs = [];
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            // Auto-expire: skip jobs whose closing date has passed
+            if (data.closingDate) {
+                const closingDate = data.closingDate.toDate ? data.closingDate.toDate() : new Date(data.closingDate);
+                if (closingDate < now) {
+                    // Auto-update status to 'expired' in the background
+                    db.collection('jobs').doc(doc.id).update({ status: 'expired' }).catch(() => { });
+                    return; // Skip this job
+                }
+            }
+            jobs.push({ id: doc.id, ...data });
+        });
 
         // Filter by job type
         if (type && type !== 'all') {
-            query = query.where('jobType', '==', type);
+            jobs = jobs.filter((job) => job.jobType === type);
         }
 
         // Filter by location
         if (location && location.trim()) {
-            query = query.where('locationLower', '==', location.trim().toLowerCase());
+            const loc = location.trim().toLowerCase();
+            jobs = jobs.filter((job) => job.locationLower === loc);
         }
-
-        // Order by date posted (newest first)
-        query = query.orderBy('createdAt', 'desc');
 
         // Date filter
         if (datePosted) {
-            const now = new Date();
             let dateLimit;
             switch (datePosted) {
                 case '24h':
@@ -43,16 +62,12 @@ router.get('/', async (req, res) => {
                     dateLimit = null;
             }
             if (dateLimit) {
-                query = query.where('createdAt', '>=', dateLimit);
+                jobs = jobs.filter((job) => {
+                    const created = job.createdAt?.toDate ? job.createdAt.toDate() : new Date(job.createdAt);
+                    return created >= dateLimit;
+                });
             }
         }
-
-        const snapshot = await query.get();
-        let jobs = [];
-
-        snapshot.forEach((doc) => {
-            jobs.push({ id: doc.id, ...doc.data() });
-        });
 
         // Keyword search (client-side filtering since Firestore doesn't support full-text search)
         if (keyword && keyword.trim()) {
@@ -75,6 +90,7 @@ router.get('/', async (req, res) => {
             ...job,
             createdAt: job.createdAt?.toDate ? job.createdAt.toDate().toISOString() : job.createdAt,
             updatedAt: job.updatedAt?.toDate ? job.updatedAt.toDate().toISOString() : job.updatedAt,
+            closingDate: job.closingDate?.toDate ? job.closingDate.toDate().toISOString() : job.closingDate,
         }));
 
         res.json({
@@ -102,8 +118,18 @@ router.get('/:id', async (req, res) => {
         }
 
         const job = { id: doc.id, ...doc.data() };
+
+        // Check if job is expired
+        if (job.closingDate) {
+            const closingDate = job.closingDate.toDate ? job.closingDate.toDate() : new Date(job.closingDate);
+            if (closingDate < new Date()) {
+                job.isExpired = true;
+            }
+        }
+
         job.createdAt = job.createdAt?.toDate ? job.createdAt.toDate().toISOString() : job.createdAt;
         job.updatedAt = job.updatedAt?.toDate ? job.updatedAt.toDate().toISOString() : job.updatedAt;
+        job.closingDate = job.closingDate?.toDate ? job.closingDate.toDate().toISOString() : job.closingDate;
 
         res.json(job);
     } catch (error) {
@@ -118,11 +144,23 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', verifyToken, requireCompany, async (req, res) => {
     try {
-        const { title, description, location, jobType, salary, keywords, cvLink } = req.body;
+        const { title, description, location, jobType, salary, keywords, cvLink, closingDate } = req.body;
 
         if (!title || !description || !location || !jobType) {
             return res.status(400).json({ error: 'Title, description, location, and job type are required.' });
         }
+
+        if (!closingDate) {
+            return res.status(400).json({ error: 'Closing date is required.' });
+        }
+
+        // Validate closing date is in the future
+        const closingDateObj = new Date(closingDate);
+        if (closingDateObj <= new Date()) {
+            return res.status(400).json({ error: 'Closing date must be in the future.' });
+        }
+
+        const now = admin.firestore.Timestamp.now();
 
         const jobData = {
             title: title.trim(),
@@ -133,13 +171,14 @@ router.post('/', verifyToken, requireCompany, async (req, res) => {
             salary: salary || '',
             keywords: keywords || [],
             cvLink: cvLink || '',
+            closingDate: admin.firestore.Timestamp.fromDate(closingDateObj),
             companyId: req.user.uid,
             companyName: req.companyProfile.companyName || '',
             companyLogo: req.companyProfile.logo || '',
             status: 'published',
             applicantCount: 0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            createdAt: now,
+            updatedAt: now,
         };
 
         const docRef = await db.collection('jobs').add(jobData);
@@ -147,8 +186,9 @@ router.post('/', verifyToken, requireCompany, async (req, res) => {
         res.status(201).json({
             id: docRef.id,
             ...jobData,
-            createdAt: jobData.createdAt.toISOString(),
-            updatedAt: jobData.updatedAt.toISOString(),
+            createdAt: jobData.createdAt.toDate().toISOString(),
+            updatedAt: jobData.updatedAt.toDate().toISOString(),
+            closingDate: closingDateObj.toISOString(),
             message: 'Job published successfully!',
         });
     } catch (error) {
@@ -174,9 +214,13 @@ router.put('/:id', verifyToken, requireCompany, async (req, res) => {
             return res.status(403).json({ error: 'You can only update your own job posts.' });
         }
 
-        const updates = { ...req.body, updatedAt: new Date() };
+        const updates = { ...req.body, updatedAt: admin.firestore.Timestamp.now() };
         if (updates.location) {
             updates.locationLower = updates.location.trim().toLowerCase();
+        }
+        // Convert closingDate string to Firestore Timestamp
+        if (updates.closingDate) {
+            updates.closingDate = admin.firestore.Timestamp.fromDate(new Date(updates.closingDate));
         }
         // Remove fields that shouldn't be updated
         delete updates.companyId;
