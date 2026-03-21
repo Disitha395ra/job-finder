@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiSearch, FiBriefcase, FiUser, FiLogOut, FiFileText, FiMenu, FiX } from 'react-icons/fi';
+import { FiBriefcase, FiUser, FiLogOut, FiFileText } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import './Navbar.css';
 
 const Navbar = () => {
     const { currentUser, userProfile, userType, logout } = useAuth();
-    const [searchQuery, setSearchQuery] = useState('');
+
     const [showDropdown, setShowDropdown] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const dropdownRef = useRef(null);
@@ -28,12 +28,7 @@ const Navbar = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        if (searchQuery.trim()) {
-            navigate(`/?keyword=${encodeURIComponent(searchQuery.trim())}`);
-        }
-    };
+
 
     const handleLogout = async () => {
         await logout();
@@ -57,18 +52,6 @@ const Navbar = () => {
                     JobFinder
                 </Link>
 
-                {/* Search Bar */}
-                <form className="navbar-search" onSubmit={handleSearch}>
-                    <input
-                        type="text"
-                        placeholder="Search jobs, companies, keywords..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <button type="submit" className="navbar-search-btn" aria-label="Search">
-                        <FiSearch size={16} />
-                    </button>
-                </form>
 
                 {/* Right Section */}
                 <div className="navbar-right">
