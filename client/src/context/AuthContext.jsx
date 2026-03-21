@@ -42,31 +42,35 @@ export const AuthProvider = ({ children }) => {
         try {
             const token = await user.getIdToken();
 
-            // Try fetching as seeker first
-            try {
-                const res = await api.get('/users/profile', {
+            // Try fetching seeker and company profiles in parallel for speed
+            const [seekerResult, companyResult] = await Promise.allSettled([
+                api.get('/users/profile', {
                     headers: { Authorization: `Bearer ${token}` },
-                });
-                setUserProfile(res.data);
+                }),
+                api.get('/companies/profile', {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            ]);
+
+            if (seekerResult.status === 'fulfilled') {
+                setUserProfile(seekerResult.value.data);
                 setUserType('seeker');
-                return;
-            } catch (e) {
-                // Not a seeker, check company
+                return 'seeker';
             }
 
-            // Try fetching as company
-            try {
-                const res = await api.get('/companies/profile', {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                setUserProfile(res.data);
+            if (companyResult.status === 'fulfilled') {
+                setUserProfile(companyResult.value.data);
                 setUserType('company');
-                return;
-            } catch (e) {
-                // Profile doesn't exist yet
+                return 'company';
             }
+
+            // Neither profile found - new user or orphaned auth
+            setUserProfile(null);
+            setUserType(null);
+            return null;
         } catch (error) {
             console.error('Error fetching profile:', error);
+            return null;
         }
     };
 
@@ -103,16 +107,17 @@ export const AuthProvider = ({ children }) => {
         return userCredential.user;
     };
 
-    // Login
+    // Login - returns the detected user type so login pages can navigate correctly
     const login = async (email, password) => {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        await fetchUserProfile(userCredential.user);
-        return userCredential.user;
+        const detectedType = await fetchUserProfile(userCredential.user);
+        return { user: userCredential.user, userType: detectedType };
     };
 
     // Logout
     const logout = async () => {
         await signOut(auth);
+        setCurrentUser(null);
         setUserProfile(null);
         setUserType(null);
     };
