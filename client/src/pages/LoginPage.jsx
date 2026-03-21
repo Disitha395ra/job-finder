@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { FiMail, FiLock, FiLogIn } from 'react-icons/fi';
 import { toast } from 'react-toastify';
@@ -7,7 +7,7 @@ import Loader from '../components/ui/Loader';
 import '../components/auth/AuthForms.css';
 
 const LoginPage = () => {
-    const { login } = useAuth();
+    const { login, currentUser, userType, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const from = location.state?.from || '/';
@@ -16,6 +16,17 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // Redirect if already logged in
+    useEffect(() => {
+        if (!authLoading && currentUser) {
+            if (userType === 'company') {
+                navigate('/company/dashboard', { replace: true });
+            } else {
+                navigate(from, { replace: true });
+            }
+        }
+    }, [authLoading, currentUser, userType]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -28,9 +39,15 @@ const LoginPage = () => {
 
         setLoading(true);
         try {
-            await login(email, password);
+            const { userType: detectedType } = await login(email, password);
             toast.success('Welcome back!');
-            navigate(from, { replace: true });
+
+            // Navigate based on detected user type
+            if (detectedType === 'company') {
+                navigate('/company/dashboard', { replace: true });
+            } else {
+                navigate(from, { replace: true });
+            }
         } catch (err) {
             const code = err.code;
             if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
@@ -44,6 +61,8 @@ const LoginPage = () => {
             setLoading(false);
         }
     };
+
+    if (authLoading) return <Loader />;
 
     return (
         <div className="auth-page">
@@ -91,6 +110,9 @@ const LoginPage = () => {
                     <div className="auth-footer">
                         <p>
                             Don't have an account? <Link to="/register" state={{ from }}>Create one</Link>
+                        </p>
+                        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                            Are you a company? <Link to="/company/login">Company Login</Link>
                         </p>
                     </div>
                 </div>
