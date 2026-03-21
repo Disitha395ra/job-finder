@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiBriefcase, FiUser, FiLogOut, FiFileText } from 'react-icons/fi';
+import { FiBriefcase, FiUser, FiLogOut, FiFileText, FiHome } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 import './Navbar.css';
 
@@ -28,8 +28,6 @@ const Navbar = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-
-
     const handleLogout = async () => {
         await logout();
         setShowDropdown(false);
@@ -39,6 +37,10 @@ const Navbar = () => {
     const getInitials = () => {
         const name = userProfile?.fullName || userProfile?.companyName || '';
         return name.charAt(0).toUpperCase() || 'U';
+    };
+
+    const getDisplayName = () => {
+        return userProfile?.fullName || userProfile?.companyName || 'User';
     };
 
     return (
@@ -52,9 +54,16 @@ const Navbar = () => {
                     JobFinder
                 </Link>
 
-
                 {/* Right Section */}
                 <div className="navbar-right">
+                    {/* Show Browse Jobs link for company users */}
+                    {userType === 'company' && (
+                        <Link to="/" className="navbar-link">
+                            <FiHome size={16} />
+                            <span>Browse Jobs</span>
+                        </Link>
+                    )}
+
                     {/* Company / Post Job Button */}
                     <button
                         className="navbar-btn navbar-btn-company"
@@ -78,8 +87,11 @@ const Navbar = () => {
                             {showDropdown && (
                                 <div className="navbar-dropdown">
                                     <div className="dropdown-header">
-                                        <strong>{userProfile?.fullName || userProfile?.companyName}</strong>
+                                        <strong>{getDisplayName()}</strong>
                                         <span>{currentUser.email}</span>
+                                        <span className="dropdown-role-badge">
+                                            {userType === 'company' ? '🏢 Company' : '👤 Job Seeker'}
+                                        </span>
                                     </div>
 
                                     {userType === 'seeker' && (
