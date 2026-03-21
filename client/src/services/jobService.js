@@ -73,6 +73,24 @@ export const applicationService = {
         });
         return res.data;
     },
+
+    // Download all CVs for a job as ZIP (company)
+    downloadCVs: async (jobId, jobTitle, token) => {
+        const res = await api.get(`/applications/job/${jobId}/download-cvs`, {
+            headers: { Authorization: `Bearer ${token}` },
+            responseType: 'blob',
+        });
+        // Trigger download
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        const safeTitle = jobTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
+        link.setAttribute('download', `${safeTitle}_CVs.zip`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    },
 };
 
 export const companyService = {

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    FiPlus, FiBriefcase, FiSettings, FiMapPin, FiClock, FiUsers, FiTrash2, FiEdit2, FiCalendar, FiAlertCircle,
+    FiPlus, FiBriefcase, FiSettings, FiMapPin, FiClock, FiUsers, FiTrash2,
+    FiCalendar, FiDownload, FiMail, FiPhone, FiFileText, FiChevronDown, FiChevronUp, FiExternalLink,
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
-import { jobService, companyService } from '../services/jobService';
+import { jobService, applicationService, companyService } from '../services/jobService';
 import Loader from '../components/ui/Loader';
 import '../components/auth/AuthForms.css';
 import './CompanyDashboard.css';
@@ -16,6 +17,12 @@ const CompanyDashboard = () => {
     const [activeTab, setActiveTab] = useState('jobs');
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Applicants state
+    const [expandedJobId, setExpandedJobId] = useState(null);
+    const [applicants, setApplicants] = useState({});
+    const [loadingApplicants, setLoadingApplicants] = useState(null);
+    const [downloadingCVs, setDownloadingCVs] = useState(null);
 
     // Post Job form
     const [postForm, setPostForm] = useState({
@@ -95,6 +102,46 @@ const CompanyDashboard = () => {
             setJobs(jobs.filter((j) => j.id !== jobId));
         } catch (error) {
             toast.error('Failed to delete job.');
+        }
+    };
+
+    const handleViewApplicants = async (jobId) => {
+        if (expandedJobId === jobId) {
+            setExpandedJobId(null);
+            return;
+        }
+
+        setExpandedJobId(jobId);
+
+        // Only fetch if not already loaded
+        if (!applicants[jobId]) {
+            setLoadingApplicants(jobId);
+            try {
+                const token = await getToken();
+                const data = await applicationService.getJobApplications(jobId, token);
+                setApplicants((prev) => ({ ...prev, [jobId]: data }));
+            } catch (error) {
+                console.error('Error fetching applicants:', error);
+                toast.error('Failed to load applicants.');
+            } finally {
+                setLoadingApplicants(null);
+            }
+        }
+    };
+
+    const handleDownloadCVs = async (jobId, jobTitle) => {
+        setDownloadingCVs(jobId);
+        try {
+            const token = await getToken();
+            await applicationService.downloadCVs(jobId, jobTitle, token);
+            toast.success('CVs downloaded successfully!');
+        } catch (error) {
+            const msg = error.response?.status === 404
+                ? 'No CVs found for this job.'
+                : 'Failed to download CVs.';
+            toast.error(msg);
+        } finally {
+            setDownloadingCVs(null);
         }
     };
 
@@ -231,6 +278,25 @@ const CompanyDashboard = () => {
                                     </div>
                                     <div className="dashboard-job-actions">
                                         <button
+                                            className="dashboard-action-btn"
+                                            onClick={() => handleViewApplicants(job.id)}
+                                            title="View applicants"
+                                        >
+                                            {expandedJobId === job.id ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+                                        </button>
+                                        <button
+                                            className="dashboard-action-btn"
+                                            onClick={() => handleDownloadCVs(job.id, job.title)}
+                                            disabled={downloadingCVs === job.id || (job.applicantCount || 0) === 0}
+                                            title="Download all CVs as ZIP"
+                                        >
+                                            {downloadingCVs === job.id ? (
+                                                <div className="btn-spinner" />
+                                            ) : (
+                                                <FiDownload size={16} />
+                                            )}
+                                        </button>
+                                        <button
                                             className="dashboard-action-btn danger"
                                             onClick={() => handleDeleteJob(job.id)}
                                             title="Delete job"
@@ -239,6 +305,70 @@ const CompanyDashboard = () => {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Applicants Expandable Section */}
+                                {expandedJobId === job.id && (
+                                    <div className="applicants-section">
+                                        {loadingApplicants === job.id ? (
+                                            <Loader />
+                                        ) : applicants[job.id]?.length > 0 ? (
+                                            <>
+                                                <div className="applicants-header">
+                                                    <h4><FiUsers size={16} /> {applicants[job.id].length} Applicant{applicants[job.id].length !== 1 ? 's' : ''}</h4>
+                                                    <button
+                                                        className="applicants-download-btn"
+                                                        onClick={() => handleDownloadCVs(job.id, job.title)}
+                                                        disabled={downloadingCVs === job.id}
+                                                    >
+                                                        {downloadingCVs === job.id ? (
+                                                            <Loader inline text="Downloading..." />
+                                                        ) : (
+                                                            <><FiDownload size={14} /> Download All CVs (ZIP)</>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                                <div className="applicants-list">
+                                                    {applicants[job.id].map((app) => (
+                                                        <div key={app.id} className="applicant-card">
+                                                            <div className="applicant-avatar">
+                                                                {app.username?.charAt(0)?.toUpperCase() || 'A'}
+                                                            </div>
+                                                            <div className="applicant-info">
+                                                                <h5>{app.username}</h5>
+                                                                <div className="applicant-details">
+                                                                    <span><FiMail size={13} /> {app.email}</span>
+                                                                    <span><FiPhone size={13} /> {app.phone}</span>
+                                                                    <span><FiCalendar size={13} /> Applied {formatDate(app.createdAt)}</span>
+                                                                </div>
+                                                                {app.coverLetter && (
+                                                                    <p className="applicant-cover-letter">{app.coverLetter}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="applicant-actions">
+                                                                {app.cvUrl && (
+                                                                    <a
+                                                                        href={app.cvUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="applicant-cv-btn"
+                                                                        title="View CV"
+                                                                    >
+                                                                        <FiFileText size={14} /> View CV <FiExternalLink size={12} />
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="applicants-empty">
+                                                <FiUsers size={24} />
+                                                <p>No applications received yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))
                     ) : (

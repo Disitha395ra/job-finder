@@ -12,10 +12,9 @@ router.get('/', async (req, res) => {
         const { keyword, location, type, datePosted, page = 1, limit = 20 } = req.query;
         const now = new Date();
 
-        // Start with all published jobs, ordered by newest first
+        // Fetch all published jobs (no orderBy to avoid composite index requirement)
         let query = db.collection('jobs')
-            .where('status', '==', 'published')
-            .orderBy('createdAt', 'desc');
+            .where('status', '==', 'published');
 
         const snapshot = await query.get();
         let jobs = [];
@@ -32,6 +31,13 @@ router.get('/', async (req, res) => {
                 }
             }
             jobs.push({ id: doc.id, ...data });
+        });
+
+        // Sort by createdAt descending (newest first) — done in-memory to avoid Firestore composite index
+        jobs.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return dateB - dateA;
         });
 
         // Filter by job type

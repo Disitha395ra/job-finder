@@ -65,7 +65,6 @@ router.get('/jobs', verifyToken, requireCompany, async (req, res) => {
         const snapshot = await db
             .collection('jobs')
             .where('companyId', '==', req.user.uid)
-            .orderBy('createdAt', 'desc')
             .get();
 
         const now = new Date();
@@ -93,6 +92,9 @@ router.get('/jobs', verifyToken, requireCompany, async (req, res) => {
                 closingDate: data.closingDate?.toDate ? data.closingDate.toDate().toISOString() : data.closingDate,
             });
         });
+
+        // Sort by createdAt descending (newest first) — in-memory to avoid composite index
+        jobs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
         res.json(jobs);
     } catch (error) {

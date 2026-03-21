@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const archiver = require('archiver');
+const https = require('https');
+const http = require('http');
 const { db, bucket } = require('../config/firebase');
 const { verifyToken, requireSeeker, requireCompany } = require('../middleware/auth');
 
@@ -53,9 +56,11 @@ router.post('/', verifyToken, requireSeeker, upload.single('cv'), async (req, re
         }
 
         let cvUrl = '';
+        let cvFileName = '';
 
         // Upload CV to Firebase Storage
         if (req.file) {
+            cvFileName = req.file.originalname;
             const fileName = `cvs/${req.user.uid}/${uuidv4()}_${req.file.originalname}`;
             const file = bucket.file(fileName);
 
@@ -86,6 +91,7 @@ router.post('/', verifyToken, requireSeeker, upload.single('cv'), async (req, re
             phone: phone.trim(),
             coverLetter: coverLetter?.trim() || '',
             cvUrl,
+            cvFileName,
             status: 'submitted',
             createdAt: new Date(),
         };
@@ -119,7 +125,6 @@ router.get('/user', verifyToken, requireSeeker, async (req, res) => {
         const snapshot = await db
             .collection('applications')
             .where('userId', '==', req.user.uid)
-            .orderBy('createdAt', 'desc')
             .get();
 
         const applications = [];
@@ -131,6 +136,9 @@ router.get('/user', verifyToken, requireSeeker, async (req, res) => {
                 createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
             });
         });
+
+        // Sort by createdAt descending in-memory
+        applications.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
         res.json(applications);
     } catch (error) {
@@ -157,7 +165,6 @@ router.get('/job/:jobId', verifyToken, requireCompany, async (req, res) => {
         const snapshot = await db
             .collection('applications')
             .where('jobId', '==', req.params.jobId)
-            .orderBy('createdAt', 'desc')
             .get();
 
         const applications = [];
@@ -170,10 +177,119 @@ router.get('/job/:jobId', verifyToken, requireCompany, async (req, res) => {
             });
         });
 
+        // Sort by createdAt descending in-memory
+        applications.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
         res.json(applications);
     } catch (error) {
         console.error('Error fetching job applications:', error);
         res.status(500).json({ error: 'Failed to fetch applications.' });
+    }
+});
+
+/**
+ * GET /api/applications/job/:jobId/download-cvs
+ * Download all CVs for a job as a ZIP file (Company only, must own the job)
+ */
+router.get('/job/:jobId/download-cvs', verifyToken, requireCompany, async (req, res) => {
+    try {
+        // Verify ownership
+        const jobDoc = await db.collection('jobs').doc(req.params.jobId).get();
+        if (!jobDoc.exists) {
+            return res.status(404).json({ error: 'Job not found.' });
+        }
+        const jobData = jobDoc.data();
+        if (jobData.companyId !== req.user.uid) {
+            return res.status(403).json({ error: 'Access denied.' });
+        }
+
+        // Get all applications for this job
+        const snapshot = await db
+            .collection('applications')
+            .where('jobId', '==', req.params.jobId)
+            .get();
+
+        const applications = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.cvUrl) {
+                applications.push({
+                    id: doc.id,
+                    username: data.username,
+                    email: data.email,
+                    cvUrl: data.cvUrl,
+                    cvFileName: data.cvFileName || 'cv',
+                });
+            }
+        });
+
+        if (applications.length === 0) {
+            return res.status(404).json({ error: 'No CVs found for this job.' });
+        }
+
+        // Set response headers for ZIP download
+        const safeTitle = jobData.title.replace(/[^a-zA-Z0-9_-]/g, '_');
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}_CVs.zip"`);
+
+        // Create ZIP archive
+        const archive = archiver('zip', { zlib: { level: 5 } });
+
+        archive.on('error', (err) => {
+            console.error('Archive error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Failed to create ZIP file.' });
+            }
+        });
+
+        // Pipe archive to response
+        archive.pipe(res);
+
+        // Helper to download a file from URL and return buffer
+        const downloadFile = (url) => {
+            return new Promise((resolve, reject) => {
+                const protocol = url.startsWith('https') ? https : http;
+                protocol.get(url, (response) => {
+                    if (response.statusCode === 301 || response.statusCode === 302) {
+                        // Follow redirect
+                        return downloadFile(response.headers.location).then(resolve).catch(reject);
+                    }
+                    if (response.statusCode !== 200) {
+                        return reject(new Error(`Failed to download: ${response.statusCode}`));
+                    }
+                    const chunks = [];
+                    response.on('data', (chunk) => chunks.push(chunk));
+                    response.on('end', () => resolve(Buffer.concat(chunks)));
+                    response.on('error', reject);
+                }).on('error', reject);
+            });
+        };
+
+        // Add each CV to the archive
+        for (let i = 0; i < applications.length; i++) {
+            const app = applications[i];
+            try {
+                const buffer = await downloadFile(app.cvUrl);
+                // Create a unique filename: ApplicantName_email_originalFilename
+                const safeName = app.username.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const ext = app.cvFileName.includes('.')
+                    ? app.cvFileName.substring(app.cvFileName.lastIndexOf('.'))
+                    : '.pdf';
+                const fileName = `${safeName}_${app.email.split('@')[0]}${ext}`;
+                archive.append(buffer, { name: fileName });
+            } catch (downloadErr) {
+                console.error(`Failed to download CV for ${app.username}:`, downloadErr.message);
+                // Skip this file and continue
+            }
+        }
+
+        // Finalize the archive
+        await archive.finalize();
+    } catch (error) {
+        console.error('Error downloading CVs:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to download CVs.' });
+        }
     }
 });
 
