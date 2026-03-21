@@ -5,15 +5,32 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Allowed origins: localhost for dev, production URLs from env
+const allowedOrigins = [
+    /^http:\/\/localhost(:\d+)?$/,
+];
+
+// Add production client URL if set
+if (process.env.CLIENT_URL) {
+    allowedOrigins.push(process.env.CLIENT_URL);
+}
+
 // Middleware
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, Postman, etc.)
+        // Allow requests with no origin (mobile apps, Postman, curl, etc.)
         if (!origin) return callback(null, true);
-        // Allow any localhost port
-        if (/^http:\/\/localhost(:\d+)?$/.test(origin)) {
+
+        // Check against allowed origins
+        const isAllowed = allowedOrigins.some((allowed) => {
+            if (allowed instanceof RegExp) return allowed.test(origin);
+            return allowed === origin;
+        });
+
+        if (isAllowed) {
             return callback(null, true);
         }
+
         callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
