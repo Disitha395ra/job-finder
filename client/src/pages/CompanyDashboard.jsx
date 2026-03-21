@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    FiPlus, FiBriefcase, FiSettings, FiMapPin, FiClock, FiUsers, FiTrash2, FiEdit2,
+    FiPlus, FiBriefcase, FiSettings, FiMapPin, FiClock, FiUsers, FiTrash2, FiEdit2, FiCalendar, FiAlertCircle,
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
@@ -20,7 +20,7 @@ const CompanyDashboard = () => {
     // Post Job form
     const [postForm, setPostForm] = useState({
         title: '', description: '', location: '', jobType: 'Full-time',
-        salary: '', keywords: '', cvLink: '',
+        salary: '', keywords: '', cvLink: '', closingDate: '',
     });
     const [posting, setPosting] = useState(false);
 
@@ -74,7 +74,7 @@ const CompanyDashboard = () => {
             toast.success('Job published successfully!');
             setPostForm({
                 title: '', description: '', location: '', jobType: 'Full-time',
-                salary: '', keywords: '', cvLink: '',
+                salary: '', keywords: '', cvLink: '', closingDate: '',
             });
             setActiveTab('jobs');
             fetchJobs();
@@ -186,12 +186,24 @@ const CompanyDashboard = () => {
                         <Loader />
                     ) : jobs.length > 0 ? (
                         jobs.map((job) => (
-                            <div key={job.id} className="dashboard-job-card">
+                            <div key={job.id} className={`dashboard-job-card ${job.isExpired ? 'expired' : ''}`}>
                                 <div className="dashboard-job-top">
                                     <div>
                                         <h3 className="dashboard-job-title">
                                             {job.title}
-                                            {isNewPost(job.createdAt) && (
+                                            {job.isExpired ? (
+                                                <span style={{
+                                                    marginLeft: '8px',
+                                                    fontSize: '0.7rem',
+                                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                                    color: 'white',
+                                                    padding: '0.15rem 0.5rem',
+                                                    borderRadius: 'var(--radius-full)',
+                                                    verticalAlign: 'middle',
+                                                }}>
+                                                    EXPIRED
+                                                </span>
+                                            ) : isNewPost(job.createdAt) ? (
                                                 <span style={{
                                                     marginLeft: '8px',
                                                     fontSize: '0.7rem',
@@ -203,13 +215,18 @@ const CompanyDashboard = () => {
                                                 }}>
                                                     NEW
                                                 </span>
-                                            )}
+                                            ) : null}
                                         </h3>
                                         <div className="dashboard-job-meta">
                                             <span><FiMapPin size={14} /> {job.location}</span>
                                             <span><FiClock size={14} /> {job.jobType}</span>
                                             <span><FiUsers size={14} /> {job.applicantCount || 0} applicants</span>
                                             <span>Posted {formatDate(job.createdAt)}</span>
+                                            {job.closingDate && (
+                                                <span style={{ color: job.isExpired ? 'var(--error)' : 'var(--text-secondary)' }}>
+                                                    <FiCalendar size={14} /> Closes {formatDate(job.closingDate)}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="dashboard-job-actions">
@@ -332,6 +349,19 @@ const CompanyDashboard = () => {
                                     placeholder="https://..."
                                 />
                             </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label htmlFor="post-closing-date">Application Closing Date *</label>
+                            <input
+                                id="post-closing-date"
+                                className="form-input"
+                                type="date"
+                                value={postForm.closingDate}
+                                onChange={(e) => setPostForm({ ...postForm, closingDate: e.target.value })}
+                                min={new Date().toISOString().split('T')[0]}
+                                required
+                            />
                         </div>
 
                         <button
