@@ -55,6 +55,12 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal server error.' });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// Only listen when running locally (not in Vercel serverless)
+if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+}
+
+// Export for Vercel serverless
+module.exports = app;
