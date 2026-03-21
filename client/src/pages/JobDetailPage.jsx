@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiMapPin, FiClock, FiDollarSign, FiCalendar, FiUsers, FiUpload, FiSend } from 'react-icons/fi';
+import { FiArrowLeft, FiMapPin, FiClock, FiDollarSign, FiCalendar, FiUsers, FiUpload, FiSend, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import { jobService, applicationService } from '../services/jobService';
@@ -151,6 +151,11 @@ const JobDetailPage = () => {
                                 <span className="job-detail-meta-item">
                                     <FiUsers size={16} /> {job.applicantCount || 0} applicants
                                 </span>
+                                {job.closingDate && (
+                                    <span className="job-detail-meta-item" style={{ color: job.isExpired ? 'var(--error)' : 'inherit' }}>
+                                        <FiCalendar size={16} /> {job.isExpired ? 'Closed' : 'Closes'} {formatDate(job.closingDate)}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -177,7 +182,12 @@ const JobDetailPage = () => {
 
                 {/* Apply Section */}
                 <div className="job-detail-apply">
-                    {applied ? (
+                    {job.isExpired ? (
+                        <div className="alert alert-warning" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem 1.25rem', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 'var(--radius-lg)', color: '#92400e' }}>
+                            <FiAlertCircle size={20} />
+                            <span>This job posting has expired and is no longer accepting applications.</span>
+                        </div>
+                    ) : applied ? (
                         <div className="alert alert-success">
                             ✅ Your application has been successfully submitted. You can track it in your Applied Jobs.
                         </div>

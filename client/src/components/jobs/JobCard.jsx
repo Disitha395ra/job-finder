@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { FiMapPin, FiClock, FiDollarSign, FiSearch } from 'react-icons/fi';
+import { FiMapPin, FiClock, FiDollarSign, FiSearch, FiCalendar } from 'react-icons/fi';
 import './JobCard.css';
 
 const JobCard = ({ job }) => {
@@ -71,6 +71,12 @@ const JobCard = ({ job }) => {
                     <span className="job-card-meta-item">
                         <FiDollarSign size={14} />
                         {job.salary}
+                    </span>
+                )}
+                {job.closingDate && (
+                    <span className="job-card-meta-item">
+                        <FiCalendar size={14} />
+                        Closes {new Date(job.closingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                 )}
             </div>
